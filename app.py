@@ -64,9 +64,9 @@ def home():
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
             * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-            body { background: #f0f2f5; color: #1c1e21; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+            body { background: #f0f2f5; color: #1c1e21; min-height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
             #creator-badge { position: absolute; bottom: 20px; left: 20px; font-size: 12px; color: #8c939d; letter-spacing: 1px; pointer-events: none; text-transform: uppercase; transform: rotate(-90deg); transform-origin: left bottom; font-weight: 500; }
-            #main-wrapper { width: 100%; max-width: 500px; height: 95vh; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08); position: relative; overflow: hidden; }
+            #main-wrapper { width: 100%; max-width: 500px; max-height: 700px; background: #ffffff; border-radius: 20px; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08); position: relative; overflow: hidden; }
             .chat-header { padding: 15px 20px; display: flex; align-items: center; border-bottom: 1px solid #e4e6eb; background: #ffffff; }
             #avatar { width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, #ff416c, #ff4b2b); color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; box-shadow: 0 4px 10px rgba(255, 65, 108, 0.3); transition: transform 0.3s; }
             .speaking { animation: pulse 0.5s infinite alternate; }
