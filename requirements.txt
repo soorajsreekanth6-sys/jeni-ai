@@ -1,0 +1,9 @@
+Flask
+groq
+sentence-transformers
+transformers
+edge-tts
+pypdf
+python-dotenv
+torch
+gunicorn
