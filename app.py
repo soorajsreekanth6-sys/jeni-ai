@@ -254,7 +254,7 @@ def ask():
             model="qwen/qwen3.8-27b",
             messages=messages,
             temperature=0.7,
-            max_tokens=300
+            max_tokens=2048
         )
         response_text = completion.choices[0].message.content
     except Exception as e:
