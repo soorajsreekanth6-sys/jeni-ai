@@ -29,14 +29,13 @@ def save_msg(role, content):
     session.modified = True
 
 # --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
+# --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
 chunks = []
 doc_embeddings = None
 try:
     reader = PdfReader("chatbot_v2.pdf")
     pdf_text = "".join([page.extract_text() + "\n" for page in reader.pages if page.extract_text()])
     chunks = [pdf_text[i:i + 1000] for i in range(0, len(pdf_text), 1000)]
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    doc_embeddings = model.encode(chunks)
 except Exception as e:
     print("PDF Load Error (Ignoring):", e)
 
