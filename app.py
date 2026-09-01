@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, render_template_string, send_file, make_response, session
-#from sentence_transformers import SentenceTransformer, util
 from groq import Groq
 import edge_tts
 import asyncio
@@ -16,7 +15,7 @@ app.secret_key = "sooraj_etherea_veil_secret_key_999"  # Needed for isolated use
 
 client = Groq(api_key="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")
 
-# --- 1. SESSION-BASED HISTORY MANAGEMENT ---
+# --- 1. SESSION-BASED HISTORY MANAGEMENT (LIMITED TO PREVENT COOKIE OVERFLOW) ---
 def get_user_history():
     if 'chat_history' not in session:
         session['chat_history'] = []
@@ -25,10 +24,10 @@ def get_user_history():
 def save_msg(role, content):
     history = get_user_history()
     history.append({"role": role, "content": content})
-    session['chat_history'] = history
+    # Keep only the last 6 messages so the cookie never exceeds the 4KB limit!
+    session['chat_history'] = history[-6:]
     session.modified = True
 
-# --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
 # --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
 chunks = []
 doc_embeddings = None
@@ -50,7 +49,7 @@ async def speak(text):
 def clean_text_for_voice(text):
     return re.sub(r"[^\w\s.,!?']", "", text).replace("```python", "").replace("```", "")
 
-# --- 4. FRONTEND UI ---
+# --- 4. FRONTEND UI (SAFE COPY BUTTON INJECTION & STABLE MARKED) ---
 @app.route('/')
 def home():
     return render_template_string("""
@@ -77,7 +76,7 @@ def home():
             .online-dot { width: 8px; height: 8px; background: #31a24c; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 2s infinite; }
             @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
             .toggle-container { font-size: 11px; color: #65676b; }
-           #chatbox { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #ffffff; scrollbar-width: thin; scrollbar-color: #ccd0d5 transparent; }
+            #chatbox { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #ffffff; scrollbar-width: thin; scrollbar-color: #ccd0d5 transparent; }
             #chatbox::-webkit-scrollbar { width: 6px; }
             #chatbox::-webkit-scrollbar-thumb { background: #ccd0d5; border-radius: 10px; }
             .msg { max-width: 80%; padding: 10px 14px; border-radius: 18px; line-height: 1.4; font-size: 14px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0; transform: translateY(10px); }
@@ -96,7 +95,13 @@ def home():
             #send-btn:hover { transform: translateY(-2px); background: #0073e6; box-shadow: 0 4px 10px rgba(0, 132, 255, 0.3); }
             .listen-btn { background: transparent; color: #0084ff; border: 1px solid #0084ff; border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 500; cursor: pointer; margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; transition: 0.2s; }
             .listen-btn:hover { background: #e6f2ff; }
-            pre { background: #1e1e1e !important; padding: 12px; border-radius: 8px; overflow-x: auto; margin-top: 8px; font-size: 12px; border: 1px solid #e4e6eb; color: #d4d4d4; }
+            
+            /* Safe Code Container & Copy Button CSS */
+            .code-container { position: relative; margin-top: 8px; }
+            .copy-btn { position: absolute; top: 8px; right: 8px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; z-index: 10; }
+            .copy-btn:hover { background: #444; color: #fff; }
+            pre { background: #1e1e1e !important; padding: 36px 12px 12px 12px !important; border-radius: 8px; overflow-x: auto; border: 1px solid #e4e6eb; color: #d4d4d4; font-size: 12px; }
+            
             p { margin-bottom: 5px; }
             .ai-image { max-width: 100%; border-radius: 12px; margin-top: 8px; border: 1px solid #e4e6eb; }
             @media (max-width: 600px) { #main-wrapper { height: 100vh; border-radius: 0; max-width: 100%; border: none; } .chat-header { border-radius: 0; } .input-area { padding-bottom: 20px; } #creator-badge { display: none; } }
@@ -132,7 +137,31 @@ def home():
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
         
         <script>
+        // Stable Marked Setup (No Renderer Crashes)
         marked.setOptions({ breaks: true, highlight: function(code, lang) { const language = hljs.getLanguage(lang) ? lang : 'plaintext'; return hljs.highlight(code, { language }).value; } });
+
+        // Safe Function to Automatically Add Copy Buttons to Code Blocks
+        function addCopyButtons() {
+            document.querySelectorAll('pre').forEach(pre => {
+                if (!pre.parentElement.classList.contains('code-container')) {
+                    const container = document.createElement('div');
+                    container.className = 'code-container';
+                    pre.parentNode.insertBefore(container, pre);
+                    container.appendChild(pre);
+
+                    const btn = document.createElement('button');
+                    btn.className = 'copy-btn';
+                    btn.innerHTML = '📑 Copy';
+                    btn.onclick = function() {
+                        navigator.clipboard.writeText(pre.innerText).then(() => {
+                            btn.innerText = 'Copied! ✅';
+                            setTimeout(() => { btn.innerText = '📑 Copy'; }, 2000);
+                        });
+                    };
+                    container.appendChild(btn);
+                }
+            });
+        }
 
         function startDictation() {
             if (window.hasOwnProperty('webkitSpeechRecognition')) {
@@ -181,6 +210,10 @@ def home():
                 
                 document.getElementById(loadingId).remove();
                 chatbox.innerHTML += `<div class="msg mickey">${formattedResponse}<div style="margin-top:5px;"><button class="listen-btn" onclick="playVoice()">🔊 Listen</button></div></div>`;
+                
+                // Inject Copy Buttons Safely
+                addCopyButtons();
+                
                 chatbox.scrollTop = chatbox.scrollHeight;
             } catch (err) {
                 document.getElementById(loadingId).innerHTML = "⚠️ Error connecting to server.";
@@ -201,7 +234,7 @@ def home():
     </html>
     """)
 
-# --- 5. BACKEND LOGIC (GROQ CLOUD & SESSION HISTORY) ---
+# --- 5. BACKEND LOGIC (SMART ROUTING & MULTI-MODEL) ---
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json()
@@ -228,17 +261,26 @@ def ask():
         if hits:
             context = chunks[hits[0][0]["corpus_id"]]
 
-    # Persona Selection
+    # Smart Routing: Check if user is asking for code
+    code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'factorial', 'loop', 'print']
+    is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
+
+    if is_coding_query:
+        selected_model = "openai/gpt-oss-120b" # Heavy beast model for deep coding & long output
+        max_tokens_val = 2048
+    else:
+        selected_model = "qwen/qwen3.8-27b" # Fast/Savage model for normal chats & roasts
+        max_tokens_val = 1000
+
+    # Persona Selection with Conditional Language Mirroring
     if is_etherea:
-        system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala. 
-        Speak politely, warmly, and professionally in Manglish. Welcome guests, provide resort info, and maintain a calm, luxurious vibe. 
-        Keep responses concise (2-3 sentences max). You are the AI for Etherea Veil, 
-        an upcoming luxury resort project in Idukki dreamed and founded by Sooraj. Whenever someone asks about the founder, proudly say it is Sooraj.
+        system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala founded by Sooraj. 
+        Speak politely, warmly, and professionally. Match the user's language style (if they speak Manglish, reply in Manglish). Keep responses concise (2-3 sentences max). 
         Context: {context}"""
     else:
-        system_prompt = f"""You are JENI, a highly sarcastic, funny, and friendly AI assistant. 
-        Reply naturally and directly to the user's emotion in short Manglish sentences (1-3 sentences max). 
-        NEVER use hashtags. NEVER talk about being an AI. Act like a close friend.
+        system_prompt = f"""You are JENI, Sooraj's sarcastic, witty, and savage best friend who lives in his phone. 
+        CRITICAL LANGUAGE RULE: Default to normal English for standard greetings like "Hey" or general English questions. ONLY switch to natural Kerala Manglish (casual Malayalam slang mixed with English, like "Njaan Jeni aanu, ninte phone-il ulla best friend!", "Poda", "Set aanu") if the user explicitly speaks to you in Manglish or asks in Malayalam slang. 
+        Never use hashtags. Never talk about being a boring AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
         Context: {context}"""
 
     # Build Message History for Groq from User Session
@@ -248,13 +290,13 @@ def ask():
         role = "user" if msg['role'] == "User" else "assistant"
         messages.append({"role": role, "content": msg['content']})
 
-    # Groq API Call
+    # Groq API Call with Smart Routing Model
     try:
         completion = client.chat.completions.create(
-            model="qwen/qwen3.8-27b",
+            model=selected_model,
             messages=messages,
             temperature=0.7,
-            max_tokens=2048
+            max_tokens=max_tokens_val
         )
         response_text = completion.choices[0].message.content
     except Exception as e:
