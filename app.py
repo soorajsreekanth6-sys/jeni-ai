@@ -13,7 +13,8 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = "sooraj_etherea_veil_secret_key_999"  # Needed for isolated user sessions
 
-client = Groq(api_key="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")
+# Securely load Groq client using Environment Variable
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # --- 1. SESSION-BASED HISTORY MANAGEMENT (LIMITED TO PREVENT COOKIE OVERFLOW) ---
 def get_user_history():
