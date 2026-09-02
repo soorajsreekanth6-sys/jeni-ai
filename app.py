@@ -16,7 +16,7 @@ app.secret_key = "sooraj_etherea_veil_secret_key_999"  # Needed for isolated use
 # Securely load Groq client using Environment Variable
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# --- 1. SESSION-BASED HISTORY MANAGEMENT (LIMITED TO PREVENT COOKIE OVERFLOW) ---
+# --- 1. SESSION-BASED HISTORY MANAGEMENT ---
 def get_user_history():
     if 'chat_history' not in session:
         session['chat_history'] = []
@@ -50,7 +50,7 @@ async def speak(text):
 def clean_text_for_voice(text):
     return re.sub(r"[^\w\s.,!?']", "", text).replace("```python", "").replace("```", "")
 
-# --- 4. FRONTEND UI (SAFE COPY BUTTON INJECTION & CLEAR CHAT) ---
+# --- 4. FRONTEND UI ---
 @app.route('/')
 def home():
     return render_template_string("""
@@ -99,7 +99,6 @@ def home():
             .clear-btn { background: #ff416c; color: white; border: none; border-radius: 12px; padding: 2px 8px; font-size: 10px; cursor: pointer; font-weight: 600; }
             .clear-btn:hover { background: #e0355b; }
             
-            /* Safe Code Container & Copy Button CSS */
             .code-container { position: relative; margin-top: 8px; }
             .copy-btn { position: absolute; top: 8px; right: 8px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px; z-index: 10; }
             .copy-btn:hover { background: #444; color: #fff; }
@@ -180,7 +179,7 @@ def home():
                 micBtn.classList.add('recording');
                 recognition.start();
                 recognition.onresult = function(e) { document.getElementById('chat-input').value = e.results[0][0].transcript; recognition.stop(); micBtn.classList.remove('recording'); };
-                recognition.onerror = function(e) { recognition.stop(); micBtn.classList.remove('recording'); console.log("Voice Error: ", e.error); };
+                recognition.onerror = function(e) { recognition.stop(); micBtn.classList.remove('recording'); };
             } else { alert("Browser mic not supported! Use Chrome."); }
         }
 
@@ -239,7 +238,7 @@ def home():
     </html>
     """)
 
-# --- 5. BACKEND LOGIC (SMART ROUTING & CLEAR ROUTE) ---
+# --- 5. BACKEND LOGIC ---
 @app.route('/clear', methods=['POST'])
 def clear_chat():
     session.pop('chat_history', None)
@@ -247,61 +246,61 @@ def clear_chat():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    data = request.get_json()
-    user_query = data.get('query', '')
-    is_etherea = data.get('etherea_mode', False)
-    
-    save_msg("User", user_query)
-    
-    # Image Generation
-    if user_query.startswith("/imagine "):
-        image_prompt = user_query.replace("/imagine ", "").strip()
-        encoded_prompt = image_prompt.replace(" ", "%20")
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
-        response_text = f"Dhaa pidicho! Nee paranja **{image_prompt}**-nte padam.\n\n![Generated Image]({image_url})"
-        save_msg("JENI", response_text)
-        return jsonify({"response": response_text})
-
-    # Knowledge Base Search
-    context = ""
-    if doc_embeddings is not None and len(chunks) > 0:
-        global model
-        query_embedding = model.encode(user_query)
-        hits = util.semantic_search(query_embedding, doc_embeddings, top_k=1)
-        if hits:
-            context = chunks[hits[0][0]["corpus_id"]]
-
-    # Smart Routing: Check if user is asking for code
-    code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'factorial', 'loop', 'print']
-    is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
-
-    if is_coding_query:
-        selected_model = "openai/gpt-oss-120b"
-        max_tokens_val = 2048
-    else:
-        selected_model = "qwen/qwen3.8-27b"
-        max_tokens_val = 1000
-
-    # Persona Selection (Clean general identity for friends)
-    if is_etherea:
-        system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala founded by Sooraj. 
-        Speak politely, warmly, and professionally. Match the user's language style (if they speak Manglish, reply in Manglish). Keep responses concise (2-3 sentences max). 
-        Context: {context}"""
-    else:
-        system_prompt = f"""You are JENI, a sarcastic, witty, and savage best friend who lives in the user's phone. 
-        CRITICAL LANGUAGE RULE: Default to normal English for standard greetings like "Hey" or general English questions. ONLY switch to natural Kerala Manglish (casual Malayalam slang mixed with English, like "Njaan Jeni aanu, ninte phone-il ulla best friend!", "Poda", "Set aanu") if the user explicitly speaks to you in Manglish or asks in Malayalam slang. 
-        Never use hashtags. Never talk about being a boring AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
-        Context: {context}"""
-
-    # Build Message History for Groq from User Session
-    messages = [{"role": "system", "content": system_prompt}]
-    history = get_user_history()
-    for msg in history[-6:]: 
-        role = "user" if msg['role'] == "User" else "assistant"
-        messages.append({"role": role, "content": msg['content']})
-
-    # Groq API Call with Smart Routing Model
     try:
+        data = request.get_json()
+        user_query = data.get('query', '')
+        is_etherea = data.get('etherea_mode', False)
+        
+        save_msg("User", user_query)
+        
+        # Image Generation
+        if user_query.startswith("/imagine "):
+            image_prompt = user_query.replace("/imagine ", "").strip()
+            encoded_prompt = image_prompt.replace(" ", "%20")
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+            response_text = f"Dhaa pidicho! Nee paranja **{image_prompt}**-nte padam.\n\n![Generated Image]({image_url})"
+            save_msg("JENI", response_text)
+            return jsonify({"response": response_text})
+
+        # Knowledge Base Search
+        context = ""
+        if doc_embeddings is not None and len(chunks) > 0:
+            global model
+            query_embedding = model.encode(user_query)
+            hits = util.semantic_search(query_embedding, doc_embeddings, top_k=1)
+            if hits:
+                context = chunks[hits[0][0]["corpus_id"]]
+
+        # Smart Routing for Code
+        code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'factorial', 'loop', 'print']
+        is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
+
+        if is_coding_query:
+            selected_model = "openai/gpt-oss-120b"
+            max_tokens_val = 2048
+        else:
+            selected_model = "qwen/qwen3.8-27b"
+            max_tokens_val = 1000
+
+        # Persona Selection
+        if is_etherea:
+            system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala founded by Sooraj. 
+            Speak politely, warmly, and professionally. Match the user's language style (if they speak Manglish, reply in Manglish). Keep responses concise (2-3 sentences max). 
+            Context: {context}"""
+        else:
+            system_prompt = f"""You are JENI, a sarcastic, witty, and savage best friend who lives in the user's phone. 
+            CRITICAL LANGUAGE RULE: Default to normal English for standard greetings like "Hey" or general English questions. ONLY switch to natural Kerala Manglish (casual Malayalam slang mixed with English, like "Njaan Jeni aanu, ninte phone-il ulla best friend!", "Poda", "Set aanu") if the user explicitly speaks to you in Manglish or asks in Malayalam slang. 
+            Never use hashtags. Never talk about being a boring AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
+            Context: {context}"""
+
+        # Build Message History
+        messages = [{"role": "system", "content": system_prompt}]
+        history = get_user_history()
+        for msg in history[-6:]: 
+            role = "user" if msg['role'] == "User" else "assistant"
+            messages.append({"role": role, "content": msg['content']})
+
+        # Groq API Call
         completion = client.chat.completions.create(
             model=selected_model,
             messages=messages,
@@ -309,17 +308,18 @@ def ask():
             max_tokens=max_tokens_val
         )
         response_text = completion.choices[0].message.content
+
+        save_msg("JENI", response_text)
+
+        # Generate Audio
+        voice_text = clean_text_for_voice(response_text)
+        asyncio.run(speak(voice_text))
+
+        return jsonify({"response": response_text})
+
     except Exception as e:
-        print("Groq API Error:", e)
-        response_text = "Eda, ente Groq API key set aakkiyittundo ennu onnu nokkiye! Error adikkunnu. 🥲"
-
-    save_msg("JENI", response_text)
-
-    # Generate Audio
-    voice_text = clean_text_for_voice(response_text)
-    asyncio.run(speak(voice_text))
-
-    return jsonify({"response": response_text})
+        print("Backend Error:", e)
+        return jsonify({"response": "Eda, server-il oru cheriya technical glitch! Oru vattam koode try cheythu nokkikoo. 🥲"})
 
 @app.route("/voice")
 def voice():
