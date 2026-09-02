@@ -50,7 +50,7 @@ async def speak(text):
 def clean_text_for_voice(text):
     return re.sub(r"[^\w\s.,!?']", "", text).replace("```python", "").replace("```", "")
 
-# --- 4. FRONTEND UI (SAFE COPY BUTTON INJECTION & STABLE MARKED) ---
+# --- 4. FRONTEND UI (SAFE COPY BUTTON INJECTION & CLEAR CHAT) ---
 @app.route('/')
 def home():
     return render_template_string("""
@@ -76,7 +76,7 @@ def home():
             .header-info p { font-size: 12px; color: #31a24c; display: flex; align-items: center; margin-top: 2px;}
             .online-dot { width: 8px; height: 8px; background: #31a24c; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 2s infinite; }
             @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-            .toggle-container { font-size: 11px; color: #65676b; }
+            .toggle-container { font-size: 11px; color: #65676b; display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
             #chatbox { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #ffffff; scrollbar-width: thin; scrollbar-color: #ccd0d5 transparent; }
             #chatbox::-webkit-scrollbar { width: 6px; }
             #chatbox::-webkit-scrollbar-thumb { background: #ccd0d5; border-radius: 10px; }
@@ -96,6 +96,8 @@ def home():
             #send-btn:hover { transform: translateY(-2px); background: #0073e6; box-shadow: 0 4px 10px rgba(0, 132, 255, 0.3); }
             .listen-btn { background: transparent; color: #0084ff; border: 1px solid #0084ff; border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 500; cursor: pointer; margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; transition: 0.2s; }
             .listen-btn:hover { background: #e6f2ff; }
+            .clear-btn { background: #ff416c; color: white; border: none; border-radius: 12px; padding: 2px 8px; font-size: 10px; cursor: pointer; font-weight: 600; }
+            .clear-btn:hover { background: #e0355b; }
             
             /* Safe Code Container & Copy Button CSS */
             .code-container { position: relative; margin-top: 8px; }
@@ -122,6 +124,7 @@ def home():
                         <input type="checkbox" id="etherea-toggle" style="width:auto; margin-right:5px;"> 
                         Etherea Mode 🌴
                     </label>
+                    <button class="clear-btn" onclick="clearHistory()">Clear 🗑️</button>
                 </div>
             </div>
             <div id="chatbox"></div>
@@ -138,10 +141,8 @@ def home():
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
         
         <script>
-        // Stable Marked Setup (No Renderer Crashes)
         marked.setOptions({ breaks: true, highlight: function(code, lang) { const language = hljs.getLanguage(lang) ? lang : 'plaintext'; return hljs.highlight(code, { language }).value; } });
 
-        // Safe Function to Automatically Add Copy Buttons to Code Blocks
         function addCopyButtons() {
             document.querySelectorAll('pre').forEach(pre => {
                 if (!pre.parentElement.classList.contains('code-container')) {
@@ -162,6 +163,11 @@ def home():
                     container.appendChild(btn);
                 }
             });
+        }
+
+        async function clearHistory() {
+            await fetch('/clear', {method: 'POST'});
+            document.getElementById('chatbox').innerHTML = '';
         }
 
         function startDictation() {
@@ -212,9 +218,7 @@ def home():
                 document.getElementById(loadingId).remove();
                 chatbox.innerHTML += `<div class="msg mickey">${formattedResponse}<div style="margin-top:5px;"><button class="listen-btn" onclick="playVoice()">🔊 Listen</button></div></div>`;
                 
-                // Inject Copy Buttons Safely
                 addCopyButtons();
-                
                 chatbox.scrollTop = chatbox.scrollHeight;
             } catch (err) {
                 document.getElementById(loadingId).innerHTML = "⚠️ Error connecting to server.";
@@ -235,7 +239,12 @@ def home():
     </html>
     """)
 
-# --- 5. BACKEND LOGIC (SMART ROUTING & MULTI-MODEL) ---
+# --- 5. BACKEND LOGIC (SMART ROUTING & CLEAR ROUTE) ---
+@app.route('/clear', methods=['POST'])
+def clear_chat():
+    session.pop('chat_history', None)
+    return jsonify({"status": "cleared"})
+
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json()
@@ -267,19 +276,19 @@ def ask():
     is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
 
     if is_coding_query:
-        selected_model = "openai/gpt-oss-120b" # Heavy beast model for deep coding & long output
+        selected_model = "openai/gpt-oss-120b"
         max_tokens_val = 2048
     else:
-        selected_model = "qwen/qwen3.8-27b" # Fast/Savage model for normal chats & roasts
+        selected_model = "qwen/qwen3.8-27b"
         max_tokens_val = 1000
 
-    # Persona Selection with Conditional Language Mirroring
+    # Persona Selection (Clean general identity for friends)
     if is_etherea:
         system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala founded by Sooraj. 
         Speak politely, warmly, and professionally. Match the user's language style (if they speak Manglish, reply in Manglish). Keep responses concise (2-3 sentences max). 
         Context: {context}"""
     else:
-        system_prompt = f"""You are JENI, Sooraj's sarcastic, witty, and savage best friend who lives in his phone. 
+        system_prompt = f"""You are JENI, a sarcastic, witty, and savage best friend who lives in the user's phone. 
         CRITICAL LANGUAGE RULE: Default to normal English for standard greetings like "Hey" or general English questions. ONLY switch to natural Kerala Manglish (casual Malayalam slang mixed with English, like "Njaan Jeni aanu, ninte phone-il ulla best friend!", "Poda", "Set aanu") if the user explicitly speaks to you in Manglish or asks in Malayalam slang. 
         Never use hashtags. Never talk about being a boring AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
         Context: {context}"""
