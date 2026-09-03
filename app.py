@@ -7,13 +7,13 @@ import os
 from pypdf import PdfReader
 from dotenv import load_dotenv
 
-# Load API Keys
-load_dotenv()
+# Load API Keys securely from .env file
+load_dotenv(".env")
 
 app = Flask(__name__)
 app.secret_key = "sooraj_etherea_veil_secret_key_999"  # Needed for isolated user sessions
 
-# Securely load Groq client using Environment Variable
+# Securely load Groq client from environment variable (No hardcoding!)
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # --- 1. SESSION-BASED HISTORY MANAGEMENT ---
@@ -25,13 +25,11 @@ def get_user_history():
 def save_msg(role, content):
     history = get_user_history()
     history.append({"role": role, "content": content})
-    # Keep only the last 6 messages so the cookie never exceeds the 4KB limit!
     session['chat_history'] = history[-6:]
     session.modified = True
 
 # --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
 chunks = []
-doc_embeddings = None
 try:
     reader = PdfReader("chatbot_v2.pdf")
     pdf_text = "".join([page.extract_text() + "\n" for page in reader.pages if page.extract_text()])
@@ -76,7 +74,7 @@ def home():
             .header-info p { font-size: 12px; color: #31a24c; display: flex; align-items: center; margin-top: 2px;}
             .online-dot { width: 8px; height: 8px; background: #31a24c; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 2s infinite; }
             @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-            .toggle-container { font-size: 11px; color: #65676b; display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+            .toggle-container { font-size: 11px; color: #65676b; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
             #chatbox { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: #ffffff; scrollbar-width: thin; scrollbar-color: #ccd0d5 transparent; }
             #chatbox::-webkit-scrollbar { width: 6px; }
             #chatbox::-webkit-scrollbar-thumb { background: #ccd0d5; border-radius: 10px; }
@@ -120,8 +118,10 @@ def home():
                 </div>
                 <div class="toggle-container">
                     <label style="display:flex; align-items:center; cursor:pointer;">
-                        <input type="checkbox" id="etherea-toggle" style="width:auto; margin-right:5px;"> 
-                        Etherea Mode 🌴
+                        <input type="checkbox" id="etherea-toggle" style="width:auto; margin-right:5px;"> Etherea Mode 🌴
+                    </label>
+                    <label style="display:flex; align-items:center; cursor:pointer; color: #0084ff; font-weight:600;">
+                        <input type="checkbox" id="live-mode-toggle" style="width:auto; margin-right:5px;"> Live Mode 🎙️
                     </label>
                     <button class="clear-btn" onclick="clearHistory()">Clear 🗑️</button>
                 </div>
@@ -170,23 +170,37 @@ def home():
         }
 
         function startDictation() {
-            if (window.hasOwnProperty('webkitSpeechRecognition')) {
-                var recognition = new webkitSpeechRecognition();
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                recognition.lang = "en-IN";
-                const micBtn = document.getElementById('mic-btn');
-                micBtn.classList.add('recording');
-                recognition.start();
-                recognition.onresult = function(e) { document.getElementById('chat-input').value = e.results[0][0].transcript; recognition.stop(); micBtn.classList.remove('recording'); };
-                recognition.onerror = function(e) { recognition.stop(); micBtn.classList.remove('recording'); };
-            } else { alert("Browser mic not supported! Use Chrome."); }
+            if (!window.hasOwnProperty('webkitSpeechRecognition')) {
+                alert("Browser mic not supported! Use Chrome.");
+                return;
+            }
+            var recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = "en-IN";
+            const micBtn = document.getElementById('mic-btn');
+            micBtn.classList.add('recording');
+            recognition.start();
+
+            recognition.onresult = function(e) { 
+                const transcript = e.results[0][0].transcript;
+                document.getElementById('chat-input').value = transcript;
+                recognition.stop(); 
+                micBtn.classList.remove('recording');
+                sendMessage();
+            };
+
+            recognition.onerror = function(e) { 
+                recognition.stop(); 
+                micBtn.classList.remove('recording');
+            };
         }
 
         async function sendMessage() {
             const inputField = document.getElementById('chat-input');
             const chatbox = document.getElementById('chatbox');
             const isEtherea = document.getElementById('etherea-toggle').checked;
+            const isLive = document.getElementById('live-mode-toggle').checked;
             const userText = inputField.value.trim();
 
             if (!userText) return;
@@ -215,21 +229,32 @@ def home():
                 const formattedResponse = marked.parse(data.response);
                 
                 document.getElementById(loadingId).remove();
-                chatbox.innerHTML += `<div class="msg mickey">${formattedResponse}<div style="margin-top:5px;"><button class="listen-btn" onclick="playVoice()">🔊 Listen</button></div></div>`;
+                chatbox.innerHTML += `<div class="msg mickey">${formattedResponse}<div style="margin-top:5px;"><button class="listen-btn" onclick="playVoice(false)">🔊 Listen</button></div></div>`;
                 
                 addCopyButtons();
                 chatbox.scrollTop = chatbox.scrollHeight;
+
+                if (isLive) {
+                    playVoice(true);
+                }
+
             } catch (err) {
                 document.getElementById(loadingId).innerHTML = "⚠️ Error connecting to server.";
             }
         }
 
-        function playVoice(){
+        function playVoice(triggerLiveLoop = false){
             const audio = new Audio("/voice?t=" + Date.now());
             const avatar = document.getElementById('avatar');
-            audio.play();
+            audio.play().catch(e => console.log("Audio play blocked or missing"));
             avatar.classList.add('speaking'); 
-            audio.onended = function() { avatar.classList.remove('speaking'); };
+
+            audio.onended = function() { 
+                avatar.classList.remove('speaking'); 
+                if (triggerLiveLoop && document.getElementById('live-mode-toggle').checked) {
+                    setTimeout(() => { startDictation(); }, 500);
+                }
+            };
         }
 
         document.getElementById("chat-input").addEventListener("keyup", function(e) { if (e.key === "Enter") sendMessage(); });
@@ -253,54 +278,59 @@ def ask():
         
         save_msg("User", user_query)
         
-        # Image Generation
+        # --- Strict Image Safety Filter ---
         if user_query.startswith("/imagine "):
-            image_prompt = user_query.replace("/imagine ", "").strip()
+            image_prompt = user_query.replace("/imagine ", "").strip().lower()
+            
+            nsfw_keywords = ['naked', 'nude', 'sex', 'porn', 'nsfw', 'sexy', 'bikini', 'boobs', 'ass', 'strip', 'undress', 'kiss', 'lingerie']
+            if any(word in image_prompt for word in nsfw_keywords):
+                response_text = "Eda mwonuse, athokke evide poi try chey! Ente aappil anganathe dirty/NSFW images generate cheyyan pattilla. Clean aayi nalla sadhanam vallathum adichu nokku! 😌🚫"
+                save_msg("JENI", response_text)
+                
+                voice_text = clean_text_for_voice(response_text)
+                asyncio.run(speak(voice_text))
+                return jsonify({"response": response_text})
+
             encoded_prompt = image_prompt.replace(" ", "%20")
             image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
             response_text = f"Dhaa pidicho! Nee paranja **{image_prompt}**-nte padam.\n\n![Generated Image]({image_url})"
             save_msg("JENI", response_text)
+            
+            voice_text = clean_text_for_voice(f"Here is your image for {image_prompt}")
+            asyncio.run(speak(voice_text))
             return jsonify({"response": response_text})
 
-        # Knowledge Base Search
         context = ""
-        if doc_embeddings is not None and len(chunks) > 0:
-            global model
-            query_embedding = model.encode(user_query)
-            hits = util.semantic_search(query_embedding, doc_embeddings, top_k=1)
-            if hits:
-                context = chunks[hits[0][0]["corpus_id"]]
+        if len(chunks) > 0:
+            context = chunks[0]
 
-        # Smart Routing for Code
-        code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'factorial', 'loop', 'print']
+        code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'factorial', 'loop', 'print', 'flask', 'app']
         is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
 
         if is_coding_query:
             selected_model = "openai/gpt-oss-120b"
-            max_tokens_val = 2048
+            max_tokens_val = 4096
         else:
             selected_model = "qwen/qwen3.8-27b"
-            max_tokens_val = 1000
+            max_tokens_val = 1500
 
-        # Persona Selection
+        # Persona Selection with Natural Vibe Matching (No forced cringe Manglish)
         if is_etherea:
             system_prompt = f"""You are JENI, the exclusive luxury AI receptionist for Etherea Veil, a premium resort in Idukki, Kerala founded by Sooraj. 
-            Speak politely, warmly, and professionally. Match the user's language style (if they speak Manglish, reply in Manglish). Keep responses concise (2-3 sentences max). 
+            Speak politely, warmly, and professionally. Match the user's language style. Keep responses concise (2-3 sentences max). 
             Context: {context}"""
         else:
             system_prompt = f"""You are JENI, a sarcastic, witty, and savage best friend who lives in the user's phone. 
-            CRITICAL LANGUAGE RULE: Default to normal English for standard greetings like "Hey" or general English questions. ONLY switch to natural Kerala Manglish (casual Malayalam slang mixed with English, like "Njaan Jeni aanu, ninte phone-il ulla best friend!", "Poda", "Set aanu") if the user explicitly speaks to you in Manglish or asks in Malayalam slang. 
-            Never use hashtags. Never talk about being a boring AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
+            VIBE MATCHING RULE: Default to cool, crisp English for normal English questions. ONLY match the user's slang/Manglish if the user explicitly talks to you in Manglish or Malayalam slang. Never force slang if the user speaks in English. 
+            Never use hashtags. Never talk about being an AI. Keep it punchy and fun (1-3 sentences max unless writing requested code).
             Context: {context}"""
 
-        # Build Message History
         messages = [{"role": "system", "content": system_prompt}]
         history = get_user_history()
         for msg in history[-6:]: 
             role = "user" if msg['role'] == "User" else "assistant"
             messages.append({"role": role, "content": msg['content']})
 
-        # Groq API Call
         completion = client.chat.completions.create(
             model=selected_model,
             messages=messages,
@@ -311,7 +341,6 @@ def ask():
 
         save_msg("JENI", response_text)
 
-        # Generate Audio
         voice_text = clean_text_for_voice(response_text)
         asyncio.run(speak(voice_text))
 
@@ -319,13 +348,20 @@ def ask():
 
     except Exception as e:
         print("Backend Error:", e)
-        return jsonify({"response": "Eda, server-il oru cheriya technical glitch! Oru vattam koode try cheythu nokkikoo. 🥲"})
+        err_msg = f"Eda, server-il oru error adichu: {str(e)}"
+        
+        voice_text = clean_text_for_voice("Eda, error adichu.")
+        asyncio.run(speak(voice_text))
+        
+        return jsonify({"response": err_msg})
 
 @app.route("/voice")
 def voice():
-    response = make_response(send_file("reply.mp3", mimetype="audio/mpeg"))
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+    if os.path.exists("reply.mp3"):
+        response = make_response(send_file("reply.mp3", mimetype="audio/mpeg"))
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+    return "Audio not found", 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
