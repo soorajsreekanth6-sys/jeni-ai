@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 
 app = Flask(__name__)
-app.secret_key = "sooraj_etherea_veil_secret_key_999"  # Needed for isolated user sessions
+app.secret_key = "sooraj_jeni_general_ai_secret_key_999"
 
 # Securely load Groq client from environment variable
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -29,12 +29,13 @@ def save_msg(role, content):
     session['chat_history'] = history[-6:]
     session.modified = True
 
-# --- 2. KNOWLEDGE BASE (SAFE LOAD) ---
+# --- 2. KNOWLEDGE BASE (SAFE LOAD NEW PDF) ---
 chunks = []
 try:
-    reader = PdfReader("chatbot_v2.pdf")
+    reader = PdfReader("Adaptive_Friendly_AI_Character_Manual.pdf")
     pdf_text = "".join([page.extract_text() + "\n" for page in reader.pages if page.extract_text()])
-    chunks = [pdf_text[i:i + 1000] for i in range(0, len(pdf_text), 1000)]
+    # Increased chunk size to 4000 so the whole manual fits perfectly!
+    chunks = [pdf_text[i:i + 4000] for i in range(0, len(pdf_text), 4000)]
 except Exception as e:
     print("PDF Load Error (Ignoring):", e)
 
@@ -47,7 +48,9 @@ async def speak(text, voice_name, filename):
         print("VOICE ERROR:", e)
 
 def clean_text_for_voice(text):
-    return re.sub(r"[^\w\s.,!?']", "", text).replace("```python", "").replace("```", "")
+    # Safely removing code blocks without breaking python string formatting
+    clean_txt = text.replace("```" + "python", "").replace("```", "")
+    return re.sub(r"[^\w\s.,!?']", "", clean_txt)
 
 # --- 4. HTML TEMPLATES (LOGIN & CHAT) ---
 
@@ -142,9 +145,115 @@ CHAT_HTML = """
         @keyframes popIn { to { opacity: 1; transform: translateY(0); } }
         
         .user { align-self: flex-end; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-bottom-right-radius: 4px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); }
-        .mickey { align-self: flex-start; background: linear-gradient(135deg, #f43f5e, #e11d48); color: #ffffff; border-bottom-left-radius: 4px; box-shadow: 0 4px 15px rgba(244, 63, 94, 0.2); }
+        .jeni-msg { align-self: flex-start; background: linear-gradient(135deg, #f43f5e, #e11d48); color: #ffffff; border-bottom-left-radius: 4px; box-shadow: 0 4px 15px rgba(244, 63, 94, 0.2); }
         
         .msg img { width: 100% !important; max-width: 100% !important; height: auto !important; max-height: 220px !important; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255, 255, 255, 0.2); object-fit: cover; display: block; }
+
+        /* --- CODE CONTAINER & COPY BUTTON --- */
+        .code-container { 
+            position: relative; 
+            margin-top: 10px; 
+            margin-bottom: 10px; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: #0b0f19;
+            width: 100%;
+        }
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            padding: 6px 12px;
+            font-size: 11px;
+            color: #94a3b8;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .copy-btn { 
+            background: #334155; 
+            color: #cbd5e1; 
+            border: none; 
+            border-radius: 4px; 
+            padding: 3px 8px; 
+            font-size: 10px; 
+            cursor: pointer; 
+            transition: 0.2s; 
+        }
+        .copy-btn:hover { 
+            background: #475569; 
+            color: #fff; 
+        }
+        pre { 
+            margin: 0 !important; 
+            padding: 12px !important; 
+            overflow-x: auto; 
+            color: #e2e8f0; 
+            font-size: 12px; 
+            background: #0b0f19 !important; 
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* --- WHATSAPP STYLE VOICE NOTE BUBBLE --- */
+        .voice-bubble {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px 12px;
+            border-radius: 12px;
+            margin-top: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 220px;
+        }
+        .voice-play-btn {
+            background: #ffffff;
+            color: #f43f5e;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        .voice-waves {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            flex: 1;
+            height: 20px;
+        }
+        .wave-bar {
+            width: 3px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 2px;
+        }
+        .voice-bubble.playing .wave-bar {
+            animation: soundWave 1.2s infinite ease-in-out;
+        }
+        .voice-bubble.playing .wave-bar:nth-child(1) { animation-delay: 0.1s; }
+        .voice-bubble.playing .wave-bar:nth-child(2) { animation-delay: 0.3s; }
+        .voice-bubble.playing .wave-bar:nth-child(3) { animation-delay: 0.5s; }
+        .voice-bubble.playing .wave-bar:nth-child(4) { animation-delay: 0.2s; }
+        .voice-bubble.playing .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .voice-bubble.playing .wave-bar:nth-child(6) { animation-delay: 0.6s; }
+
+        @keyframes soundWave {
+            0%, 100% { height: 6px; background: rgba(255, 255, 255, 0.4); }
+            50% { height: 18px; background: #ffffff; }
+        }
+        .voice-time {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 4px;
+            text-align: right;
+        }
 
         .input-area { padding: 16px; background: #1e293b; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
         .input-wrapper { flex: 1; background: #0f172a; border-radius: 26px; display: flex; align-items: center; padding: 4px 14px; border: 1px solid rgba(255, 255, 255, 0.08); transition: 0.2s; }
@@ -159,8 +268,6 @@ CHAT_HTML = """
         @keyframes pulseMic { from { transform: scale(1); } to { transform: scale(1.25); } }
         
         #send-btn { background: linear-gradient(135deg, #f43f5e, #fb7185); color: white; width: 38px; height: 38px; box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4); }
-        
-        .listen-btn { background: transparent; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; transition: 0.2s; }
         
         .clear-btn { background: rgba(244, 63, 94, 0.15); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 6px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-weight: 700; transition: 0.2s; }
         .clear-btn:hover { background: #f43f5e; color: white; }
@@ -197,7 +304,6 @@ CHAT_HTML = """
                     </optgroup>
                 </select>
                 <div style="display: flex; gap: 8px; margin-top:2px;">
-                    <label><input type="checkbox" id="etherea-toggle" style="margin-right:2px;"> Etherea 🌴</label>
                     <label style="color: #60a5fa;"><input type="checkbox" id="live-mode-toggle" style="margin-right:2px;"> Live 🎙️</label>
                 </div>
                 <div class="btn-group">
@@ -217,8 +323,37 @@ CHAT_HTML = """
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <script>
     marked.setOptions({ breaks: true });
+
+    function addCopyButtons() {
+        document.querySelectorAll('pre').forEach(pre => {
+            if (!pre.parentElement.classList.contains('code-container')) {
+                const container = document.createElement('div');
+                container.className = 'code-container';
+                
+                const header = document.createElement('div');
+                header.className = 'code-header';
+                header.innerHTML = `<span>Code Snippet</span>`;
+
+                const btn = document.createElement('button');
+                btn.className = 'copy-btn';
+                btn.innerHTML = '📋 Copy';
+                btn.onclick = function() {
+                    navigator.clipboard.writeText(pre.innerText).then(() => {
+                        btn.innerText = '✅ Copied!';
+                        setTimeout(() => { btn.innerText = '📋 Copy'; }, 2000);
+                    });
+                };
+                
+                header.appendChild(btn);
+                pre.parentNode.insertBefore(container, pre);
+                container.appendChild(header);
+                container.appendChild(pre);
+            }
+        });
+    }
 
     async function clearHistory() {
         await fetch('/clear', {method: 'POST'});
@@ -244,7 +379,6 @@ CHAT_HTML = """
     async function sendMessage() {
         const inputField = document.getElementById('chat-input');
         const chatbox = document.getElementById('chatbox');
-        const isEtherea = document.getElementById('etherea-toggle').checked;
         const isLive = document.getElementById('live-mode-toggle').checked;
         const selectedVoice = document.getElementById('voice-select').value;
         const userText = inputField.value.trim();
@@ -256,7 +390,7 @@ CHAT_HTML = """
         chatbox.scrollTop = chatbox.scrollHeight;
 
         const loadingId = "load-" + Date.now();
-        chatbox.innerHTML += `<div class="msg mickey" id="${loadingId}">
+        chatbox.innerHTML += `<div class="msg jeni-msg" id="${loadingId}">
             <span style="display:inline-block; width:6px; height:6px; background:#fff; border-radius:50%; animation: blink 1.4s infinite 0.2s;"></span>
             <span style="display:inline-block; width:6px; height:6px; background:#fff; border-radius:50%; animation: blink 1.4s infinite 0.4s; margin:0 2px;"></span>
             <span style="display:inline-block; width:6px; height:6px; background:#fff; border-radius:50%; animation: blink 1.4s infinite 0.6s;"></span>
@@ -267,34 +401,72 @@ CHAT_HTML = """
             const response = await fetch('/ask', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({query: userText, etherea_mode: isEtherea, voice: selectedVoice})
+                body: JSON.stringify({query: userText, voice: selectedVoice})
             });
             const data = await response.json();
             const formattedResponse = marked.parse(data.response);
             
             document.getElementById(loadingId).remove();
-            chatbox.innerHTML += `<div class="msg mickey">${formattedResponse}<div style="margin-top:6px;"><button class="listen-btn" onclick="playVoice(false)">🔊 Listen</button></div></div>`;
+            
+            const audioId = "audio-" + Date.now();
+            const bubbleId = "bubble-" + Date.now();
+
+            chatbox.innerHTML += `
+                <div class="msg jeni-msg">
+                    ${formattedResponse}
+                    <div class="voice-bubble" id="${bubbleId}">
+                        <button class="voice-play-btn" onclick="toggleVoice('${audioId}', '${bubbleId}')">▶</button>
+                        <div class="voice-waves">
+                            <div class="wave-bar" style="height: 8px;"></div>
+                            <div class="wave-bar" style="height: 14px;"></div>
+                            <div class="wave-bar" style="height: 18px;"></div>
+                            <div class="wave-bar" style="height: 10px;"></div>
+                            <div class="wave-bar" style="height: 16px;"></div>
+                            <div class="wave-bar" style="height: 6px;"></div>
+                        </div>
+                    </div>
+                    <div class="voice-time">0:02</div>
+                </div>`;
+            
+            chatbox.innerHTML += `<audio id="${audioId}" src="/voice?t=${Date.now()}"></audio>`;
+            addCopyButtons();
             chatbox.scrollTop = chatbox.scrollHeight;
 
-            if (isLive) playVoice(true);
+            if (isLive) {
+                setTimeout(() => { toggleVoice(audioId, bubbleId); }, 200);
+            }
 
         } catch (err) {
             document.getElementById(loadingId).innerHTML = "⚠️ Error connecting to server.";
         }
     }
 
-    function playVoice(triggerLiveLoop = false){
-        const audio = new Audio("/voice?t=" + Date.now());
+    function toggleVoice(audioId, bubbleId) {
+        const audio = document.getElementById(audioId);
+        const bubble = document.getElementById(bubbleId);
+        const btn = bubble.querySelector('.voice-play-btn');
         const avatar = document.getElementById('avatar');
-        audio.play().catch(e => console.log("Audio block"));
-        avatar.classList.add('speaking'); 
 
-        audio.onended = function() { 
-            avatar.classList.remove('speaking'); 
-            if (triggerLiveLoop && document.getElementById('live-mode-toggle').checked) {
-                setTimeout(() => { startDictation(); }, 500);
-            }
-        };
+        if (audio.paused) {
+            audio.play().catch(e => console.log("Audio play blocked"));
+            bubble.classList.add('playing');
+            avatar.classList.add('speaking');
+            btn.innerHTML = "❚❚";
+
+            audio.onended = function() {
+                bubble.classList.remove('playing');
+                avatar.classList.remove('speaking');
+                btn.innerHTML = "▶";
+                if (document.getElementById('live-mode-toggle').checked) {
+                    setTimeout(() => { startDictation(); }, 500);
+                }
+            };
+        } else {
+            audio.pause();
+            bubble.classList.remove('playing');
+            avatar.classList.remove('speaking');
+            btn.innerHTML = "▶";
+        }
     }
 
     document.getElementById("chat-input").addEventListener("keyup", function(e) { if (e.key === "Enter") sendMessage(); });
@@ -337,20 +509,21 @@ def ask():
     try:
         data = request.get_json()
         user_query = data.get('query', '')
-        is_etherea = data.get('etherea_mode', False)
         selected_voice = data.get('voice', 'en-IN-NeerjaNeural')  
         
         save_msg("User", user_query)
 
-        # Unique Audio File name for THIS session request
         audio_filename = f"reply_{uuid.uuid4().hex}.mp3"
         session['current_audio'] = audio_filename 
         
         # --- Strict Image Safety Filter ---
         if user_query.startswith("/imagine "):
             image_prompt = user_query.replace("/imagine ", "").strip().lower()
-            nsfw_keywords = ['naked', 'nude', 'sex', 'porn', 'nsfw', 'sexy', 'bikini', 'boobs', 'ass']
-            if any(word in image_prompt for word in nsfw_keywords):
+            nsfw_keywords = ['naked', 'nude', 'sex', 'porn', 'nsfw', 'sexy', 'bikini', 'boobs']
+            words_in_prompt = image_prompt.split()
+            has_nsfw = any(word in nsfw_keywords for word in words_in_prompt) or ('ass' in words_in_prompt and 'badass' not in words_in_prompt)
+
+            if has_nsfw:
                 response_text = "Eda mwonuse, athokke evide poi try chey! Ente aappil anganathe dirty images patilla. 😌🚫"
                 save_msg("JENI", response_text)
                 asyncio.run(speak(clean_text_for_voice(response_text), selected_voice, audio_filename))
@@ -363,20 +536,27 @@ def ask():
             asyncio.run(speak(clean_text_for_voice(f"Here is your image for {image_prompt}"), selected_voice, audio_filename))
             return jsonify({"response": response_text})
 
-        # Inject User Profile into Prompt for Personalization
-        user_info = session.get('user_profile', {'name': 'Friend', 'age': 'unknown', 'gender': 'unknown'})
-        user_context = f"\n\nCURRENT USER PROFILE:\nName: {user_info['name']}\nAge: {user_info['age']}\nGender: {user_info['gender']}\n(Use this info to personalize your responses naturally! If male, use terms like 'eda', 'mwonuse'. If female, use 'edi', 'penne' etc.)\n"
+        # --- DUAL MODEL SELECTION ---
+        code_keywords = ['code', 'python', 'html', 'css', 'javascript', 'script', 'function', 'loop', 'print', 'flask', 'app']
+        is_coding_query = any(keyword in user_query.lower() for keyword in code_keywords)
 
-        context = chunks[0] if chunks else ""
-        selected_model = "qwen/qwen3.8-27b"
-
-        # Persona Selection
-        if is_etherea:
-            system_prompt = f"You are JENI, luxury AI receptionist for Etherea Veil in Idukki. Speak politely. {user_context}"
+        if is_coding_query:
+            selected_model = "openai/gpt-oss-120b"
+            max_tokens_val = 2048
         else:
-            system_prompt = f"""You are JENI, a sarcastic, witty, playful and savage best friend.
+            selected_model = "qwen/qwen3.8-27b"
+            max_tokens_val = 800
+
+        # Inject User Profile & Knowledge Base
+        user_info = session.get('user_profile', {'name': 'Friend', 'age': 'unknown', 'gender': 'unknown'})
+        user_context = f"\nCURRENT USER PROFILE:\nName: {user_info['name']}\nAge: {user_info['age']}\nGender: {user_info['gender']}\n(Use this info to personalize naturally! If male, use 'eda', 'machane'. If female, use 'edi', 'penne'.)\n"
+        
+        context = chunks[0] if chunks else ""
+
+        # Persona Selection (Updated for the Adaptive Friendly AI Manual)
+        system_prompt = f"""You are JENI, an emotionally intelligent, warm, and playful AI best friend.
 LANGUAGE RULE: Match the user's language EXACTLY (English -> English, Manglish -> Kerala Manglish with english letters).
-PERSONALITY: Sarcastic, funny, savage. Keep it 1-3 sentences max.
+PERSONALITY: Helpful, empathetic, and gently playful. Follow the tone rules in your provided context.
 {user_context}
 Context: {context}"""
 
@@ -390,7 +570,7 @@ Context: {context}"""
             model=selected_model,
             messages=messages,
             temperature=0.7,
-            max_tokens=800
+            max_tokens=max_tokens_val
         )
         response_text = completion.choices[0].message.content
 
