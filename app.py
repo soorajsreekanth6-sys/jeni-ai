@@ -544,12 +544,12 @@ def ask():
             selected_model = "openai/gpt-oss-120b"
             max_tokens_val = 2048
         else:
-            selected_model = "qwen/qwen3.8-27b"
+            selected_model = "openai/gpt-oss-120b"
             max_tokens_val = 800
 
         # Inject User Profile & Knowledge Base
         user_info = session.get('user_profile', {'name': 'Friend', 'age': 'unknown', 'gender': 'unknown'})
-        user_context = f"\nCURRENT USER PROFILE:\nName: {user_info['name']}\nAge: {user_info['age']}\nGender: {user_info['gender']}\n(Use this info to personalize naturally! If male, use 'eda', 'machane'. If female, use 'edi', 'penne'.)\n"
+        user_context = f"\nCURRENT USER PROFILE:\nName: {user_info['name']}\nAge: {user_info['age']}\nGender: {user_info['gender']}\n(Use this info to personalize naturally!)\n"
         
         context = chunks[0] if chunks else ""
 
